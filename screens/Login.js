@@ -5,12 +5,12 @@ import {
   TextInput, 
   TouchableOpacity, 
   StyleSheet, 
-  Alert, 
   Image, 
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  StatusBar
+  StatusBar,
+  Modal
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { signInWithEmailAndPassword } from 'firebase/auth';
@@ -22,34 +22,71 @@ export default function Login({ navigation }) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
+
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+
+  const isValidEmail = (email) => {
+    const regex = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+    return regex.test(email.toLowerCase());
+  };
+
+  
+  const isLoginValid = email && password && isValidEmail(email);
+
+  
+  const getPasswordBorderColor = () => {
+    if (password.length === 0) return '#ff0000ff';
+    return '#ccc'; 
+  };
+
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert("Error", "Por favor, completa todos los campos.");
+      setErrorMessage("Por favor, completa todos los campos.");
+      setShowErrorModal(true);
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      setErrorMessage("El formato del correo electrónico no es válido. Verifica el dominio.");
+      setShowErrorModal(true);
       return;
     }
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // Alert.alert("Éxito", "Inicio de sesión exitoso.");
-      navigation.reset({ index: 0, routes: [{ name: 'Home' }] }); 
+      setShowSuccessModal(true);
     } catch (error) {
-      let errorMessage = "Error al iniciar sesión. Intenta nuevamente.";
+      let errorMessageText = "Error al iniciar sesión. Intenta nuevamente.";
       switch (error.code) {
         case 'auth/invalid-email':
-          errorMessage = "El formato del correo electrónico no es válido.";
+          errorMessageText = "El formato del correo electrónico no es válido.";
           break;
         case 'auth/user-disabled':
-          errorMessage = "Esta cuenta ha sido deshabilitada.";
+          errorMessageText = "Esta cuenta ha sido deshabilitada.";
           break;
         case 'auth/user-not-found':
-          errorMessage = "No existe una cuenta con este correo electrónico.";
+          errorMessageText = "No existe una cuenta con este correo electrónico.";
           break;
         case 'auth/wrong-password':
-          errorMessage = "La contraseña es incorrecta.";
+          errorMessageText = "La contraseña es incorrecta.";
           break;
       }
-      Alert.alert("Error", errorMessage);
+      setErrorMessage(errorMessageText);
+      setShowErrorModal(true);
     }
+  };
+
+
+  const handleSuccessClose = () => {
+    setShowSuccessModal(false);
+    navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+  };
+
+  const handleErrorClose = () => {
+    setShowErrorModal(false);
   };
 
   return (
@@ -66,11 +103,11 @@ export default function Login({ navigation }) {
         >
           <Image source={require('../assets/logo-santo-pecado.jpg')} style={styles.logo} resizeMode='contain' />
           
-          {/* ✅ TÍTULO AGREGADO - ESTO FALTABA */}
+      
           <Text style={styles.title}>INICIA SESIÓN</Text>
 
           <Text style={styles.label}>Correo</Text>
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, { borderColor: '#ff0000ff' }]}>
             <FontAwesome name="envelope" size={20} color="#ccc" style={styles.icon} />
             <TextInput
               style={styles.input}
@@ -84,7 +121,7 @@ export default function Login({ navigation }) {
           </View>
 
           <Text style={styles.label}>Contraseña</Text>
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, { borderColor: getPasswordBorderColor() }]}>
             <FontAwesome name="lock" size={20} color="#ccc" style={styles.icon} />
             <TextInput
               style={styles.input}
@@ -99,8 +136,14 @@ export default function Login({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.button} onPress={handleLogin}>
-            <Text style={styles.buttonText}>Iniciar Sesión</Text>
+          <TouchableOpacity 
+            style={[styles.button, !isLoginValid && styles.buttonDisabled]} 
+            onPress={handleLogin}
+            disabled={!isLoginValid}
+          >
+            <Text style={[styles.buttonText, !isLoginValid && styles.buttonTextDisabled]}>
+              Iniciar Sesión
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
@@ -108,6 +151,42 @@ export default function Login({ navigation }) {
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
+
+ 
+      <Modal
+        visible={showErrorModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleErrorClose}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Error</Text>
+            <Text style={styles.modalMessage}>{errorMessage}</Text>
+            <TouchableOpacity style={styles.modalButton} onPress={handleErrorClose}>
+              <Text style={styles.modalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+    
+      <Modal
+        visible={showSuccessModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleSuccessClose}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>¡Éxito!</Text>
+            <Text style={styles.modalMessage}>Inicio de sesión exitoso.</Text>
+            <TouchableOpacity style={styles.modalButton} onPress={handleSuccessClose}>
+              <Text style={styles.modalButtonText}>Continuar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -143,19 +222,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     marginTop: 15,
+    marginBottom:15,
     color: '#fff'
   },  
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderColor: '#ff0000ff',
+    borderWidth:1,
+    borderColor: '#ff0000ff', 
+    borderRadius: 8,
+    backgroundColor: '#323743',
     marginBottom: 15,
     width: '100%',
     paddingVertical: 8,
+    paddingHorizontal:16,
   },
   icon: {
-    marginRight: 10,
+    width: 25,        
   },
   input: {
     flex: 1,
@@ -165,25 +248,74 @@ const styles = StyleSheet.create({
     backgroundColor: '#323743',
     color: '#fff',
     paddingHorizontal: 10,
+    marginHorizontal:10
   },
   button: {
     backgroundColor: '#FD002A',
     paddingVertical: 15,
     borderRadius: 5,
     marginTop: 30,
-    width: '100%',
+    width: '50%',
     alignItems: 'center',
+  },
+  buttonDisabled: { 
+    backgroundColor: '#FF6B8B',
+    opacity: 0.6,
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
   },
+  buttonTextDisabled: {  
+    color: '#E0E0E0',
+  },
   signUpText: {
     marginTop: 20,
     color: '#FD002A',
     fontWeight: '500',
+    textDecorationLine:'underline'
+  },
+ 
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    backgroundColor: '#000000',
+    borderRadius: 10,
+    padding: 20,
+    width: '80%',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ff0000ff',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 10,
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  modalButton: {
+    backgroundColor: '#FD002A',
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 5,
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
-
-
